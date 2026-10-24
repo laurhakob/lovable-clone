@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-21",
+  "kv_namespaces": [
+    {
+      "binding": "METADATA",
+      "id": "ebd94b5d436844afacc44a2a49500f9b"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "lovable-clone-files"
+    }
+  ]
+}
+
+
+// {
+//   "name": "worker",
+//   "main": "src/index.ts",
+//   "compatibility_date": "2026-10-21",
+//   "kv_namespaces": [
+//     {
+//       "binding": "METADATA",
+//       "id": "ebd94b5d436844afacc44a2a49500f9b"
+//     }
+//   ]
+// }
