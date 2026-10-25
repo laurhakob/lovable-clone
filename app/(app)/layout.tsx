@@ -1,9 +1,7 @@
-import React from 'react'
+import React from "react";
 
-function layout() {
-  return (
-    <div>layout</div>
-  )
-}
+const AppLayout = ({ children }: { children: React.ReactNode }) => {
+  return <div>{children}</div>;
+};
 
-export default layout
+export default AppLayout;

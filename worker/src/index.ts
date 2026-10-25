@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { Env, AppVariables } from "./types";
-// import { authMiddleware } from './middleware/auth'
+import { authMiddleware } from "./middleware/auth";
+import { projectRoutes } from "./routes/project";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -18,7 +19,11 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/health", (c) => {
-  return c.json({ status: "ok", timpestamp: new Date().toISOString() });
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-export default app
+app.use("/api/*", authMiddleware);
+
+app.route("/api/projects", projectRoutes);
+
+export default app;
