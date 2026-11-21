@@ -10,6 +10,11 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.105",
+    "@ai-sdk/deepseek": "^3.0.87",
+    "@ai-sdk/google": "^4.0.121",
+    "@ai-sdk/openai": "^4.0.118",
+    "ai": "^7.0.173",
     "fflate": "^0.8.3",
     "hono": "^4.13.13",
     "jose": "^6.2.13",

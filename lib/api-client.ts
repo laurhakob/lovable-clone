@@ -1,4 +1,5 @@
-import { Project, ProjectFile } from "@/types/project";
+import { Project, ProjectFile, VersionMeta } from "@/types/project";
+import { ChatMessage } from "@/types/chat";
 
 export const WORKER_URL =
   process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
@@ -29,10 +30,17 @@ async function authenticatedFetch<T>(
   });
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => ({
-      error: "Unknown error",
-      code: "UNKNOWN_ERROR",
-    }))) as { error: string; code: string; retryAfter?: number };
+    // Read the body as text first: an unhandled worker exception or a proxy
+    // error returns plain text / HTML, and calling .json() on that throws,
+    // which previously collapsed every such failure into "Unknown error".
+    const rawBody = await response.text().catch(() => "");
+
+    let errorBody: { error?: string; code?: string; retryAfter?: number } = {};
+    try {
+      errorBody = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      errorBody = {};
+    }
 
     if (response.status === 429) {
       const retryAfter = errorBody.retryAfter ?? 60;
@@ -42,9 +50,16 @@ async function authenticatedFetch<T>(
         );
       }
     }
-    throw new Error(
-      errorBody.error || `Request failed with status ${response.status}`,
-    );
+
+    const method = (options.method ?? "GET").toUpperCase();
+    // Non-JSON bodies are surfaced verbatim (truncated) so the real cause is
+    // visible instead of being swallowed.
+    const detail =
+      errorBody.error ||
+      (rawBody ? rawBody.slice(0, 300) : "") ||
+      `Request failed with status ${response.status}`;
+
+    throw new Error(`${method} ${path} → ${response.status}: ${detail}`);
   }
 
   return response.json() as Promise<T>;
@@ -86,6 +101,30 @@ export function createApiClient(getToken: GetTokenFunction) {
           {
             method: "DELETE",
           },
+        ),
+    },
+    chats: {
+      getHistory: (projectId: string) =>
+        authenticatedFetch<{ messages: ChatMessage[] }>(
+          getToken,
+          `/api/chat/${projectId}`,
+        ),
+    },
+    credits: {
+      get: () =>
+        authenticatedFetch<{
+          remaining: number;
+          total: number;
+          plan: "free" | "pro";
+          periodEnd: string;
+          isUnlimited: boolean;
+        }>(getToken, `/api/credits`),
+    },
+    versions: {
+      list: (projectId: string) =>
+        authenticatedFetch<{ versions: VersionMeta[] }>(
+          getToken,
+          `/api/projects/${projectId}/versions`,
         ),
     },
   };

@@ -181,9 +181,12 @@ projectRoutes.post("/", async (c) => {
   await Promise.all([
     c.env.METADATA.put(`project:${projectId}`, JSON.stringify(project)),
     c.env.METADATA.put(`user-projects:${userId}`, JSON.stringify(updatedIds)),
+    // Store the complete Version record — the versions timeline reads
+    // versionNumber/type/prompt/createdAt off this object, so writing only
+    // `files` leaves v0 with no metadata.
     c.env.FILES.put(
       `${projectId}/v0/files.json`,
-      JSON.stringify({ files: initialVersion.files }),
+      JSON.stringify(initialVersion),
     ),
   ]);
 

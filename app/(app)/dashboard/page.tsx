@@ -130,7 +130,7 @@ const DashboardPage = () => {
           data.description.trim(),
         );
       } catch {}
-      router.push(`/projects/${response.project.id}`);
+      router.push(`/project/${response.project.id}`);
     } catch (error) {
       console.error("Error creating project:", error);
       const message =
