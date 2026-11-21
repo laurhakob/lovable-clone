@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dependencies in any subfolder (e.g. worker/)
+node_modules/
+
+# cloudflare wrangler local state & secrets
+.wrangler/
+.dev.vars*
+!.dev.vars.example
