@@ -38,6 +38,33 @@ export interface UserCredits {
 }
 
 /**
+ * Public shape returned to the frontend by /api/credits and /api/billing.
+ */
+export interface CreditsResponse {
+  remaining: number;
+  total: number;
+  plan: "free" | "pro";
+  periodEnd: string;
+  isUnlimited: boolean;
+}
+
+/** Converts a stored credits record into the API response shape. */
+export function toCreditsResponse(credits: UserCredits): CreditsResponse {
+  return {
+    remaining: credits.remaining,
+    total: credits.total,
+    plan: credits.plan,
+    periodEnd: credits.periodEnd,
+    isUnlimited: isUnlimited(credits),
+  };
+}
+
+/** True when the record represents an unlimited (Pro) balance. */
+export function isUnlimited(credits: UserCredits): boolean {
+  return credits.remaining === UNLIMITED_CREDITS;
+}
+
+/**
  * Default credits for new free-tier users.
  */
 const DEFAULT_FREE_CREDITS = 50;

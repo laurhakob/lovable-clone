@@ -33,6 +33,11 @@ import {
   EmptyState,
   CreateProjectDialog,
 } from "@/components/dashboard";
+import { UpgradeCta } from "@/components/editor/upgrade-cta";
+import { CREDITS_UPDATED_EVENT } from "@/components/billing/upgrade-button";
+
+/** Free plan project limit (enforced by the worker too) */
+const FREE_PROJECT_LIMIT = 3;
 
 const DashboardPage = () => {
   const { getToken } = useAuth();
@@ -56,6 +61,40 @@ const DashboardPage = () => {
 
   /** Ref for auto-focusing the rename input */
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  /** User's plan — free users are limited to FREE_PROJECT_LIMIT projects */
+  const [userPlan, setUserPlan] = useState<"free" | "pro">("free");
+
+  /** Shows the upgrade CTA instead of the create dialog */
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+
+  /** Bumped by the credits-updated event (after upgrading) to refetch the plan */
+  const [planRefreshKey, setPlanRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const onUpdate = () => setPlanRefreshKey((key) => key + 1);
+    window.addEventListener(CREDITS_UPDATED_EVENT, onUpdate);
+    return () => window.removeEventListener(CREDITS_UPDATED_EVENT, onUpdate);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    createApiClient(getToken)
+      .credits.get()
+      .then((credits) => !cancelled && setUserPlan(credits.plan))
+      .catch((error) => console.error("Error fetching plan:", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, planRefreshKey]);
+
+  function openCreateDialog() {
+    if (userPlan === "free" && projects.length >= FREE_PROJECT_LIMIT) {
+      setLimitDialogOpen(true);
+      return;
+    }
+    setDialogOpen(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +174,12 @@ const DashboardPage = () => {
       console.error("Error creating project:", error);
       const message =
         error instanceof Error ? error.message : "Failed to create project";
+      // The worker enforces the limit too (e.g. projects created in another tab)
+      if (message.includes("→ 403") && message.includes("limited to")) {
+        setDialogOpen(false);
+        setLimitDialogOpen(true);
+        return;
+      }
       toast.error(message);
     }
   };
@@ -212,7 +257,7 @@ const DashboardPage = () => {
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">My Projects</h1>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2">
+        <Button onClick={openCreateDialog} className="gap-2">
           <Plus className="size-4" />
           Create Project
         </Button>
@@ -227,19 +272,30 @@ const DashboardPage = () => {
         <ProjectGrid
           projects={projects}
           projectFiles={projectFiles}
-          onNewProject={() => setDialogOpen(true)}
+          onNewProject={openCreateDialog}
           onRename={handleRename}
           onDelete={handleDelete}
         />
       ) : (
-        <EmptyState onCreateProject={() => setDialogOpen(true)} />
+        <EmptyState onCreateProject={openCreateDialog} />
       )}
 
       <CreateProjectDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleCreateProject}
+        userPlan={userPlan}
       />
+
+      <Dialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Project limit reached</DialogTitle>
+          <UpgradeCta
+            reason={`The free plan includes up to ${FREE_PROJECT_LIMIT} projects`}
+            className="border-none bg-transparent p-0"
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={renameTarget !== null}

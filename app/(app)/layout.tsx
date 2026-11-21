@@ -8,6 +8,7 @@ import { UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { CreditsDisplay } from "@/components/billing/credits-display";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -85,8 +86,8 @@ const AppLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => {
             );
           })}
         </nav>
-        {/* TODO: Add Credits Component */}
-        <div>Credits</div>
+        <Separator />
+        <CreditsDisplay />
         <Separator />
 
         <div className="flex items-center gap-3 px-5 py-4">

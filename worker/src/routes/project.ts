@@ -5,6 +5,7 @@ import { Project } from "../types/project";
 import { sanitizeProjectName } from "../services/sanitize";
 import { getCredits, FREE_PROJECT_LIMIT } from "../services/credits";
 import { createInitialVersion } from "../ai/default-project";
+import { DEFAULT_MODEL, MODEL_REGISTRY } from "../ai/providers";
 
 // * Endpoints:
 // * - GET    /api/projects       – List all projects for the authenticated user
@@ -164,7 +165,13 @@ projectRoutes.post("/", async (c) => {
     id: projectId,
     userId,
     name: sanitizedName,
-    model: body.model || "gpt-4o-mini",
+    // Unknown models, and premium models on the free plan, fall back to the default
+    model:
+      body.model &&
+      MODEL_REGISTRY[body.model] &&
+      (credits.plan === "pro" || MODEL_REGISTRY[body.model].tier !== "premium")
+        ? body.model
+        : DEFAULT_MODEL,
     currentVersion: 0,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -221,6 +228,25 @@ projectRoutes.patch("/:id", async (c) => {
     if (sanitized) project.name = sanitized;
   }
   if (body.model) {
+    const modelConfig = MODEL_REGISTRY[body.model];
+    if (!modelConfig) {
+      return c.json(
+        { error: `Unknown model: ${body.model}`, code: "INVALID_MODEL" },
+        400,
+      );
+    }
+    if (modelConfig.tier === "premium") {
+      const credits = await getCredits(userId, c.env);
+      if (credits.plan === "free") {
+        return c.json(
+          {
+            error: "Premium models require a Pro plan.",
+            code: "PREMIUM_MODEL_LOCKED",
+          },
+          403,
+        );
+      }
+    }
     project.model = body.model;
   }
   project.updatedAt = new Date().toISOString();

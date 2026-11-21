@@ -1,9 +1,15 @@
-import React from 'react'
+import { Hero } from "@/components/landing/hero";
+import { Navbar } from "@/components/landing/navbar";
 
-const Page = () => {
+/**
+ * Landing page. app/page.tsx also resolves to "/", so both render the
+ * same landing; keep them in sync (or delete one) to avoid divergence.
+ */
+export default function MarketingPage() {
   return (
-    <div>page</div>
-  )
+    <div>
+      <Navbar />
+      <Hero />
+    </div>
+  );
 }
-
-export default Page

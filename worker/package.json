@@ -18,7 +18,8 @@
     "fflate": "^0.8.3",
     "hono": "^4.13.13",
     "jose": "^6.2.13",
-    "nanoid": "^6.0.2"
+    "nanoid": "^6.0.2",
+    "svix": "^2.11.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261021.1",

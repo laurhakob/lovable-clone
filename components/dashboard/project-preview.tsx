@@ -16,7 +16,7 @@ export interface ProjectPreviewProps {
 const VIRTUAL_WIDTH = 1024;
 const VIRTUAL_HEIGHT = 640;
 
-function toSandpackFiles(
+export function toSandpackFiles(
   files: Record<string, string>,
 ): Record<string, { code: string }> {
   const sandpackFiles: Record<string, { code: string }> = {};
@@ -31,7 +31,7 @@ function toSandpackFiles(
   return sandpackFiles;
 }
 
-function extractDependencies(
+export function extractDependencies(
   files: Record<string, string>,
 ): Record<string, string> {
   const baseDeps: Record<string, string> = {

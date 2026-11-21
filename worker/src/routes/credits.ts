@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { AppVariables, Env } from "../types";
-import { getCredits, UserCredits } from "../services/credits";
+import { getCredits, toCreditsResponse } from "../services/credits";
 
 const creditsRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -17,43 +17,19 @@ const creditsRoutes = new Hono<{ Bindings: Env; Variables: AppVariables }>();
  *   remaining: number,   // -1 means unlimited (Pro)
  *   total: number,       // 50 for free tier
  *   plan: "free" | "pro",
+ *   periodStart: string,
  *   periodEnd: string,   // ISO 8601 – when credits reset
  *   isUnlimited: boolean // convenience flag for the frontend
  * }
+ *
+ * Credit deduction lives in services/credits.ts (single implementation).
  */
-
-const UNLIMITED_CREDITS = -1;
-
 creditsRoutes.get("/", async (c) => {
-  const userId = c.var.userId;
-  const credits = await getCredits(userId, c.env);
-
+  const credits = await getCredits(c.var.userId, c.env);
   return c.json({
-    remaining: credits.remaining,
-    total: credits.total,
-    plan: credits.plan,
+    ...toCreditsResponse(credits),
     periodStart: credits.periodStart,
-    periodEnd: credits.periodEnd,
-    isUnlimited: credits.remaining === -1,
   });
 });
-
-export async function deductCredits(
-  userId: string,
-  creditCost: number,
-  env: Env,
-): Promise<UserCredits> {
-  const credits = await getCredits(userId, env);
-
-  // Don't deduct from unlimited (Pro) users
-  if (credits.remaining === UNLIMITED_CREDITS) {
-    return credits;
-  }
-
-  credits.remaining = Math.max(0, credits.remaining - creditCost);
-  await env.METADATA.put(`credits:${userId}`, JSON.stringify(credits));
-
-  return credits;
-}
 
 export { creditsRoutes };

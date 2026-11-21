@@ -3,9 +3,18 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-import { ExternalLink, Eye, Loader2, MessageSquare } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  Eye,
+  Loader2,
+  MessageSquare,
+} from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import { UpgradeCta } from "./upgrade-cta";
 import { DeviceMode, DeviceToggle } from "./device-toggle";
 import { EditorTabValue, EditorTabs } from "./editor-tabs";
 import { ProjectMenu } from "./project-menu";
@@ -25,6 +34,11 @@ export interface EditorHeaderProps {
   onDelete: () => void;
   deviceMode: DeviceMode;
   onDeviceModeChange: (mode: DeviceMode) => void;
+  /** Called before opening the preview tab, e.g. to flush unsaved edits */
+  onBeforeOpenPreview?: () => Promise<void> | void;
+  /** Version number being viewed read-only, if any */
+  viewingVersion?: number | null;
+  onBackToCurrent?: () => void;
 }
 
 export function EditorHeader({
@@ -42,11 +56,51 @@ export function EditorHeader({
   onDelete,
   deviceMode,
   onDeviceModeChange,
+  onBeforeOpenPreview,
+  viewingVersion,
+  onBackToCurrent,
 }: EditorHeaderProps) {
   const [isOpening, setIsOpening] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportGateOpen, setIsExportGateOpen] = useState(false);
 
+  /**
+   * Opens a full-screen preview in a new tab. The tab is opened synchronously
+   * (so popup blockers allow it), then pointed at the preview route once any
+   * pending manual edits have been saved.
+   */
   async function handleOpenPreview() {
-    alert("preivew open is pendign");
+    const previewUrl = `/project/${projectId}/preview`;
+    const tab = window.open("about:blank", "_blank");
+    setIsOpening(true);
+    try {
+      await onBeforeOpenPreview?.();
+    } catch (error) {
+      console.error("Failed to save before opening preview:", error);
+    } finally {
+      setIsOpening(false);
+    }
+    if (tab) {
+      tab.location.href = previewUrl;
+    } else {
+      window.location.href = previewUrl;
+    }
+  }
+
+  async function handleExport() {
+    if (userPlan !== "pro") {
+      setIsExportGateOpen(true);
+      return;
+    }
+    setIsExporting(true);
+    try {
+      await downloadProjectZip(projectName, files);
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   return (
@@ -74,9 +128,24 @@ export function EditorHeader({
             onRename={onRename}
             onDelete={onDelete}
           />
-          <span className="hidden px-1.5 text-xs text-muted-foreground sm:block">
-            Previewing last saved version
-          </span>
+          {viewingVersion !== null && viewingVersion !== undefined ? (
+            <span className="hidden items-center gap-1.5 px-1.5 text-xs text-amber-500 sm:flex">
+              Viewing version {viewingVersion} (read-only)
+              {onBackToCurrent && (
+                <button
+                  type="button"
+                  onClick={onBackToCurrent}
+                  className="font-medium underline underline-offset-2 hover:text-amber-400"
+                >
+                  Back to current
+                </button>
+              )}
+            </span>
+          ) : (
+            <span className="hidden px-1.5 text-xs text-muted-foreground sm:block">
+              Previewing last saved version
+            </span>
+          )}
         </div>
       </div>
       <div className="hidden md:block absolute left-1/2 -translate-x-1/2">
@@ -145,9 +214,21 @@ export function EditorHeader({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => alert("Export Pending")}
+          onClick={handleExport}
+          disabled={isExporting}
+          className="gap-1.5 text-xs"
+          title={
+            userPlan === "pro"
+              ? "Download project as .zip"
+              : "Export is available on Pro"
+          }
         >
-          Export
+          {isExporting ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Download className="size-3.5" />
+          )}
+          <span className="hidden sm:inline">Export</span>
         </Button>
         <UserButton
           afterSignOutUrl="/"
@@ -158,6 +239,44 @@ export function EditorHeader({
           }}
         />
       </div>
+
+      <Dialog open={isExportGateOpen} onOpenChange={setIsExportGateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Upgrade to export</DialogTitle>
+          <UpgradeCta
+            reason="Exporting projects as a .zip is a Pro feature"
+            className="border-none bg-transparent p-0"
+          />
+        </DialogContent>
+      </Dialog>
     </header>
   );
+}
+
+/** Zips the project files and triggers a browser download. */
+async function downloadProjectZip(
+  projectName: string,
+  files: Record<string, string>,
+) {
+  const { default: JSZip } = await import("jszip");
+  const zip = new JSZip();
+  const folderName =
+    projectName
+      .trim()
+      .replace(/[^a-zA-Z0-9-_ ]/g, "")
+      .replace(/\s+/g, "-")
+      .toLowerCase() || "project";
+  const folder = zip.folder(folderName) ?? zip;
+  for (const [path, content] of Object.entries(files)) {
+    folder.file(path, content);
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${folderName}.zip`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

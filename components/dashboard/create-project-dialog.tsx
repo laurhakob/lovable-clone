@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Lock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,17 +15,7 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-
-const AI_MODELS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-  { value: "gpt-4o", label: "GPT-4o" },
-  { value: "gemini-2-flash", label: "Gemini 2.0 Flash" },
-  { value: "gemini-2-pro", label: "Gemini 2.0 Pro" },
-  { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
-  { value: "claude-haiku-3-5", label: "Claude Haiku 3.5" },
-  { value: "deepseek-v3", label: "DeepSeek V3" },
-  { value: "deepseek-r1", label: "DeepSeek R1" },
-] as const;
+import { DEFAULT_MODEL_ID, MODELS } from "@/lib/models";
 
 export interface CreateProjectData {
   name: string;
@@ -36,16 +27,19 @@ export interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: CreateProjectData) => void;
+  /** Premium models are locked on the free plan */
+  userPlan?: "free" | "pro";
 }
 
 export function CreateProjectDialog({
   open,
   onOpenChange,
   onSubmit,
+  userPlan = "free",
 }: CreateProjectDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [model, setModel] = useState<string>(AI_MODELS[0].value);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL_ID);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,7 +51,7 @@ export function CreateProjectDialog({
 
     setName("");
     setDescription("");
-    setModel(AI_MODELS[0].value);
+    setModel(DEFAULT_MODEL_ID);
   }
 
   return (
@@ -66,7 +60,7 @@ export function CreateProjectDialog({
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Give you project a name and describe what you want to build. Your
+            Give your project a name and describe what you want to build. Your
             description will be sent as the first AI prompt.
           </DialogDescription>
         </DialogHeader>
@@ -94,11 +88,25 @@ export function CreateProjectDialog({
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                {AI_MODELS.map((aiModel) => (
-                  <SelectItem key={aiModel.value} value={aiModel.value}>
-                    {aiModel.label}
-                  </SelectItem>
-                ))}
+                {MODELS.map((aiModel) => {
+                  const locked =
+                    aiModel.tier === "premium" && userPlan === "free";
+                  return (
+                    <SelectItem
+                      key={aiModel.id}
+                      value={aiModel.id}
+                      disabled={locked}
+                    >
+                      {aiModel.name}
+                      {locked && (
+                        <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <Lock className="size-3" />
+                          Pro
+                        </span>
+                      )}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

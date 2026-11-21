@@ -1,5 +1,6 @@
 import { Project, ProjectFile, VersionMeta } from "@/types/project";
 import { ChatMessage } from "@/types/chat";
+import { AnalyticsData } from "@/types/analytics";
 
 export const WORKER_URL =
   process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8787";
@@ -10,6 +11,30 @@ export interface ApiError {
 }
 
 type GetTokenFunction = () => Promise<string | null>;
+
+/** Credits/plan info returned by /api/credits and /api/billing. */
+export interface CreditsInfo {
+  remaining: number;
+  total: number;
+  plan: "free" | "pro";
+  periodEnd: string;
+  isUnlimited: boolean;
+}
+
+/** One file-level change between two versions. */
+export interface FileChange {
+  path: string;
+  type: "added" | "removed" | "modified";
+  oldContent: string | null;
+  newContent: string | null;
+}
+
+/** Response of the version diff endpoint. */
+export interface VersionDiff {
+  from: number;
+  to: number;
+  changes: FileChange[];
+}
 
 async function authenticatedFetch<T>(
   getToken: GetTokenFunction,
@@ -111,21 +136,54 @@ export function createApiClient(getToken: GetTokenFunction) {
         ),
     },
     credits: {
-      get: () =>
-        authenticatedFetch<{
-          remaining: number;
-          total: number;
-          plan: "free" | "pro";
-          periodEnd: string;
-          isUnlimited: boolean;
-        }>(getToken, `/api/credits`),
+      get: () => authenticatedFetch<CreditsInfo>(getToken, `/api/credits`),
+    },
+    analytics: {
+      get: () => authenticatedFetch<AnalyticsData>(getToken, `/api/analytics`),
+    },
+    billing: {
+      changePlan: (action: "upgrade" | "downgrade") =>
+        authenticatedFetch<{ success: boolean; credits: CreditsInfo }>(
+          getToken,
+          `/api/billing/plan-change`,
+          { method: "POST", body: JSON.stringify({ action }) },
+        ),
     },
     versions: {
       list: (projectId: string) =>
-        authenticatedFetch<{ versions: VersionMeta[] }>(
+        authenticatedFetch<{ versions: VersionMeta[]; currentVersion: number }>(
           getToken,
           `/api/projects/${projectId}/versions`,
         ),
+      get: (projectId: string, versionNumber: number) =>
+        authenticatedFetch<{ files: ProjectFile[]; meta: VersionMeta }>(
+          getToken,
+          `/api/projects/${projectId}/versions/${versionNumber}`,
+        ),
+      diff: (projectId: string, from: number, to: number) =>
+        authenticatedFetch<VersionDiff>(
+          getToken,
+          `/api/projects/${projectId}/versions/${from}/diff/${to}`,
+        ),
+      restore: (projectId: string, versionNumber: number) =>
+        authenticatedFetch<{
+          files: ProjectFile[];
+          meta: VersionMeta;
+          currentVersion: number;
+        }>(
+          getToken,
+          `/api/projects/${projectId}/versions/${versionNumber}/restore`,
+          { method: "POST" },
+        ),
+      saveManual: (projectId: string, files: ProjectFile[]) =>
+        authenticatedFetch<{
+          versionNumber: number;
+          meta: VersionMeta | null;
+          unchanged?: boolean;
+        }>(getToken, `/api/projects/${projectId}/versions`, {
+          method: "POST",
+          body: JSON.stringify({ files }),
+        }),
     },
   };
 }

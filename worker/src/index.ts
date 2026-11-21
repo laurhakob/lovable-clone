@@ -6,6 +6,9 @@ import { projectRoutes } from "./routes/project";
 import { chatRoutes } from "./routes/chat";
 import { creditsRoutes } from "./routes/credits";
 import { versionsRoutes } from "./routes/versions";
+import { billingRoutes } from "./routes/billing";
+import { webhookRoutes } from "./routes/webhooks";
+import { analyticsRoutes } from "./routes/analytics";
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -25,10 +28,16 @@ app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Clerk Billing webhooks are server-to-server (verified via Svix), so they
+// must be mounted outside the Clerk session auth middleware.
+app.route("/webhooks/clerk-billing", webhookRoutes);
+
 app.use("/api/*", authMiddleware);
 app.route("/api/projects", projectRoutes);
 app.route("/api/chat", chatRoutes);
 app.route("/api/credits", creditsRoutes);
+app.route("/api/billing", billingRoutes);
+app.route("/api/analytics", analyticsRoutes);
 // versionsRoutes defines its own "/:id/versions" paths, so mount at /api/projects
 app.route("/api/projects", versionsRoutes);
 

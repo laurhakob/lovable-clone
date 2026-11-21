@@ -32,6 +32,13 @@ export interface EditorLayoutProps {
   userPlan: "free" | "pro";
   onRename: (newName: string) => void;
   onDelete: () => void;
+  /** Days until free credits reset (free plan only) */
+  creditsResetDays?: number;
+  /** Called before the preview opens in a new tab (flush unsaved edits) */
+  onBeforeOpenPreview?: () => Promise<void> | void;
+  /** Lets the page switch tabs, e.g. to "preview" when viewing a version */
+  activeTab?: EditorTabValue;
+  onActiveTabChange?: (tab: EditorTabValue) => void;
 }
 
 /** Minimum and maximum width for the chat panel in percent */
@@ -63,8 +70,21 @@ export const EditorLayout = ({
   userPlan,
   onRename,
   onDelete,
+  creditsResetDays,
+  onBeforeOpenPreview,
+  activeTab: controlledTab,
+  onActiveTabChange,
 }: EditorLayoutProps) => {
-  const [activeTab, setActiveTab] = useState<EditorTabValue>("preview");
+  const [uncontrolledTab, setUncontrolledTab] =
+    useState<EditorTabValue>("preview");
+  const activeTab = controlledTab ?? uncontrolledTab;
+  const setActiveTab = useCallback(
+    (tab: EditorTabValue) => {
+      setUncontrolledTab(tab);
+      onActiveTabChange?.(tab);
+    },
+    [onActiveTabChange],
+  );
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop");
   const [chatWidthPercent, setChatWidthPercent] = useState(
     DEFAULT_CHAT_PERCENT,
@@ -150,24 +170,39 @@ export const EditorLayout = ({
         onRename={onRename}
         deviceMode={deviceMode}
         onDeviceModeChange={setDeviceMode}
+        onBeforeOpenPreview={onBeforeOpenPreview}
+        viewingVersion={viewingVersion}
+        onBackToCurrent={onBackToCurrent}
       />
 
+      {/*
+        One responsive tree for desktop and mobile, so the preview (Sandpack)
+        and editor (Monaco) are mounted exactly once. On mobile the header's
+        Chat/Preview toggle shows one side at a time.
+      */}
       <div
         className={cn(
-          "hidden md:flex flex-1 overflow-hidden",
+          "flex flex-1 overflow-hidden",
           isDragging && "select-none",
         )}
         ref={containerRef}
       >
         <div
-          className="shrink-0 overflow-hidden"
-          style={{ width: `${chatWidthPercent}%`, minWidth: MIN_CHAT_PX }}
+          className={cn(
+            "w-full shrink-0 overflow-hidden md:block md:w-(--chat-width) md:min-w-[320px]",
+            mobilePanel === "chat" ? "block" : "hidden",
+          )}
+          style={
+            { "--chat-width": `${chatWidthPercent}%` } as React.CSSProperties
+          }
         >
           <ChatPanel
             messages={messages}
             isStreaming={isStreaming}
             onSendMessage={onSendMessage}
             creditsRemaining={creditsRemaining}
+            creditsTotal={creditsTotal}
+            creditsResetDays={creditsResetDays}
             isCreditsExhausted={isCreditsExhausted}
             selectedModelId={selectedModelId}
             onModelChange={onModelChange}
@@ -175,18 +210,22 @@ export const EditorLayout = ({
           />
         </div>
 
-        {/* Drag Handle */}
-
+        {/* Drag Handle (desktop only) */}
         <div
           className={cn(
-            "panel-resize-handle shrink-0",
+            "panel-resize-handle hidden shrink-0 md:block",
             isDragging && "panel-resize-handle--active",
           )}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
         />
-        <div className="relative flex-1 overflow-hidden">
+        <div
+          className={cn(
+            "relative flex-1 overflow-hidden md:block",
+            mobilePanel === "content" ? "block" : "hidden",
+          )}
+        >
           <div
             className={cn(
               "absolute inset-0 transition-all duration-200",
@@ -231,7 +270,9 @@ export const EditorLayout = ({
                 activeTab === "history" ? "z-10 visible" : "z-0 invisible",
               )}
             >
-              {historyPanel}
+              <PanelErrorBoundary name="History">
+                {historyPanel}
+              </PanelErrorBoundary>
             </div>
           )}
 
